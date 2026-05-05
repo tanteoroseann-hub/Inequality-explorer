@@ -1,0 +1,501 @@
+﻿```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inequality Explorer | Grade 8 Math</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React and Babel -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            overscroll-behavior-y: contain;
+        }
+
+
+        .graph-grid {
+            stroke: #e2e8f0;
+            stroke-width: 1;
+        }
+
+
+        .axis {
+            stroke: #64748b;
+            stroke-width: 2;
+        }
+
+
+        .point-glow {
+            filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.5));
+        }
+
+
+        /* Hide scrollbar for cleaner look */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
+
+        @media print {
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+    <div id="root"></div>
+
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+
+        // Custom SVG Icons
+        const Icons = {
+            Graph: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>,
+            User: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+            Dashboard: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>,
+            Story: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M8 7h6"/><path d="M8 11h8"/></svg>,
+            Download: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+        };
+
+
+        const App = () => {
+            // State
+            const [a, setA] = useState(2);
+            const [b, setB] = useState(3);
+            const [c, setC] = useState(6);
+            const [op, setOp] = useState('<='); // <, <=, >, >=
+            const [activeVar, setActiveVar] = useState('A'); // A, B, or C
+            const [mode, setMode] = useState('student'); // student, teacher
+            const [isStory, setIsStory] = useState(false);
+            const [testPoint, setTestPoint] = useState(null);
+            const [history, setHistory] = useState([]);
+
+
+            // Graph Constants
+            const SIZE = 400;
+            const RANGE = 10;
+            const SCALE = SIZE / (RANGE * 2);
+
+
+            // Calculation helpers
+            const getY = (x) => (c - a * x) / b;
+            const getX = (y) => (c - b * y) / a;
+
+
+            const checkPoint = (px, py) => {
+                const val = a * px + b * py;
+                let result = false;
+                if (op === '<') result = val < c;
+                if (op === '<=') result = val <= c;
+                if (op === '>') result = val > c;
+                if (op === '>=') result = val >= c;
+                return { val, result };
+            };
+
+
+            const handleGraphClick = (e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const xRaw = e.clientX - rect.left;
+                const yRaw = e.clientY - rect.top;
+
+
+                // Convert pixels to coord units
+                const px = Math.round((xRaw - SIZE/2) / SCALE);
+                const py = Math.round((SIZE/2 - yRaw) / SCALE);
+
+
+                const { val, result } = checkPoint(px, py);
+                const newPoint = { x: px, y: py, val, isTrue: result };
+                setTestPoint(newPoint);
+                
+                // Add to teacher history
+                setHistory(prev => [{
+                    ...newPoint,
+                    eq: `${a}x + ${b}y ${op} ${c}`,
+                    time: new Date().toLocaleTimeString()
+                }, ...prev].slice(0, 15));
+            };
+
+
+            const handleKeypad = (val) => {
+                const setter = activeVar === 'A' ? setA : activeVar === 'B' ? setB : setC;
+                const current = activeVar === 'A' ? a : activeVar === 'B' ? b : c;
+
+
+                if (val === 'C') {
+                    setter(0);
+                } else if (val === '±') {
+                    setter(current * -1);
+                } else {
+                    const next = parseInt(`${current}${val}`);
+                    if (!isNaN(next) && Math.abs(next) < 100) {
+                        setter(next);
+                    }
+                }
+            };
+
+
+            const renderShading = () => {
+                const center = SIZE / 2;
+                const far = 2000;
+                const isGreater = op.includes('>');
+                
+                // Special case: Horizontal line (A=0)
+                if (a === 0) {
+                    const y_val = c / b;
+                    const y_svg = center - (y_val * SCALE);
+                    const shadeAbove = (b > 0 && isGreater) || (b < 0 && !isGreater);
+                    return <rect x="-500" y={shadeAbove ? -500 : y_svg} width="1500" height={shadeAbove ? y_svg + 500 : 1500} fill={isGreater ? 'rgba(59, 130, 246, 0.15)' : 'rgba(16, 185, 129, 0.15)'} />;
+                }
+
+
+// Special case: Vertical line (B=0)
+                if (b === 0) {
+                    const x_val = c / a;
+                    const x_svg = center + (x_val * SCALE);
+                    const shadeRight = (a > 0 && isGreater) || (a < 0 && !isGreater);
+                    return <rect x={shadeRight ? x_svg : -500} y="-500" width={shadeRight ? 1500 : x_svg + 500} height="1500" fill={isGreater ? 'rgba(59, 130, 246, 0.15)' : 'rgba(16, 185, 129, 0.15)'} />;
+                }
+
+
+                // Standard case: Linear Inequality
+                // We use a massive polygon for the half-plane
+                const x1 = -20, x2 = 20;
+                const y1 = getY(x1), y2 = getY(x2);
+                const x1s = center + (x1 * SCALE), y1s = center - (y1 * SCALE);
+                const x2s = center + (x2 * SCALE), y2s = center - (y2 * SCALE);
+
+
+                const shadeAbove = (b > 0 && isGreater) || (b < 0 && !isGreater);
+                const polyY = shadeAbove ? -far : far;
+
+
+                return (
+                    <path 
+                        d={`M ${x1s} ${y1s} L ${x2s} ${y2s} L ${far} ${polyY} L ${-far} ${polyY} Z`}
+                        fill={isGreater ? 'rgba(59, 130, 246, 0.15)' : 'rgba(16, 185, 129, 0.15)'}
+                    />
+                );
+            };
+
+
+            return (
+                <div className="min-h-screen flex flex-col h-screen overflow-hidden">
+                    {/* Navbar */}
+                    <header className="bg-white border-b px-6 py-4 flex flex-wrap justify-between items-center no-print">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-blue-600 p-2 rounded-xl text-white shadow-lg shadow-blue-200">
+                                <Icons.Graph />
+                            </div>
+                            <div>
+                                <h1 className="font-extrabold text-lg text-slate-800 leading-none">Inequality Explorer</h1>
+                                <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400 mt-1">Grade 8 • Sandbox Edition</p>
+                            </div>
+                        </div>
+
+
+                        <div className="flex bg-slate-100 p-1 rounded-2xl">
+                            <button 
+                                onClick={() => setMode('student')}
+                                className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${mode === 'student' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
+                            >
+                                <Icons.User /> Student
+                            </button>
+                            <button 
+                                onClick={() => setMode('teacher')}
+                                className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${mode === 'teacher' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
+                            >
+                                <Icons.Dashboard /> Dashboard
+                            </button>
+                        </div>
+
+
+                        <button 
+                            onClick={() => window.print()}
+                            className="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors"
+                        >
+                            <Icons.Download /> Export Work
+                        </button>
+                    </header>
+
+
+                    {/* Main App */}
+                    <main className="flex-1 flex flex-col md:flex-row overflow-hidden bg-white">
+                        {mode === 'student' ? (
+                            <>
+                                {/* Left: The Graph */}
+                                <div className="flex-1 p-6 flex flex-col items-center justify-center relative">
+                                    <div className="w-full max-w-xl aspect-square relative bg-white border-4 border-slate-100 rounded-3xl shadow-2xl overflow-hidden cursor-crosshair">
+                                        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full h-full" onClick={handleGraphClick}>
+                                            <defs>
+                                                <pattern id="grid" width={SCALE} height={SCALE} patternUnits="userSpaceOnUse">
+                                                    <path d={`M ${SCALE} 0 L 0 0 0 ${SCALE}`} fill="none" className="graph-grid" />
+                                                </pattern>
+                                            </defs>
+                                            <rect width="100%" height="100%" fill="url(#grid)" />
+                                            
+                                            {/* Shaded Region */}
+                                            {renderShading()}
+
+
+                                            {/* Axes */}
+                                            <line x1="0" y1={SIZE/2} x2={SIZE} y2={SIZE/2} className="axis" />
+                                            <line x1={SIZE/2} y1="0" x2={SIZE/2} y2={SIZE} className="axis" />
+                                            
+                                            {/* Labels */}
+                                            <text x={SIZE - 20} y={SIZE/2 + 20} className="text-[10px] font-bold fill-slate-400">{isStory ? 'Apples (x)' : 'x'}</text>
+                                            <text x={SIZE/2 + 10} y="25" className="text-[10px] font-bold fill-slate-400">{isStory ? 'Oranges (y)' : 'y'}</text>
+
+
+                                            {/* Boundary Line */}
+                                            {(() => {
+                                                const x1 = -20, x2 = 20;
+                                                const y1 = getY(x1), y2 = getY(x2);
+                                                const center = SIZE/2;
+                                                return (
+                                                    <line 
+                                                        x1={center + (x1 * SCALE)} y1={center - (y1 * SCALE)}
+                                                        x2={center + (x2 * SCALE)} y2={center - (y2 * SCALE)}
+                                                        stroke={op.includes('>') ? "#3b82f6" : "#10b981"}
+                                                        strokeWidth="4"
+                                                        strokeDasharray={op.includes('=') ? "0" : "10,6"}
+                                                    />
+                                                );
+                                            })()}
+
+
+                                            {/* Interaction Point */}
+                                            {testPoint && (
+                                                <g transform={`translate(${SIZE/2 + testPoint.x * SCALE}, ${SIZE/2 - testPoint.y * SCALE})`}>
+                                                    <circle r="10" fill={testPoint.isTrue ? "#10b981" : "#ef4444"} className="opacity-20 animate-ping" />
+                                                    <circle r="6" fill={testPoint.isTrue ? "#10b981" : "#ef4444"} stroke="white" strokeWidth="2" className="point-glow" />
+                                                </g>
+                                            )}
+                                        </svg>
+
+
+                                        {/* Status Overlays */}
+                                        <div className="absolute top-4 left-4 flex flex-col gap-2 no-print">
+                                            <div className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border shadow-sm ${isStory ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>
+                                                {isStory ? 'Story Mode: Active' : 'Abstract Math Mode'}
+                                            </div>
+                                        </div>
+
+
+                                        {/* Result Popup */}
+                                        {testPoint && (
+                                            <div className="absolute bottom-6 left-6 right-6 bg-white border border-slate-100 rounded-2xl shadow-2xl p-4 flex gap-4 items-center animate-bounce-short no-print">
+                                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white text-xl font-black ${testPoint.isTrue ? 'bg-emerald-500' : 'bg-red-500'}`}>
+                                                    {testPoint.isTrue ? '✓' : '×'}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h4 className={`text-sm font-black ${testPoint.isTrue ? 'text-emerald-700' : 'text-red-700'}`}>
+                                                        {testPoint.isTrue ? 'Point is a Solution!' : 'Not a Solution'}
+                                                    </h4>
+                                                    <p className="text-[11px] font-mono text-slate-500 leading-tight">
+                                                        {a}({testPoint.x}) + {b}({testPoint.y}) {op} {c} <br />
+                                                        <span className="font-bold text-slate-800">{testPoint.val} {op} {c} — {testPoint.isTrue ? 'TRUE' : 'FALSE'}</span>
+                                                    </p>
+                                                </div>
+                                                <button onClick={() => setTestPoint(null)} className="text-slate-300 hover:text-slate-500">×</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="mt-4 flex gap-2 items-center text-slate-400 no-print">
+                                        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                                        <span className="text-[11px] font-bold tracking-tight">TAP ANYWHERE TO TEST THE SHADED REGION</span>
+                                    </div>
+                                </div>
+
+
+                                {/* Right: Controls */}
+                                <div className="w-full md:w-96 bg-slate-50 border-l border-slate-200 p-6 flex flex-col gap-6 overflow-y-auto no-print">
+                                    {/* Equation Builder */}
+                                    <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
+                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">The Inequality</h3>
+                                        <div className="flex flex-wrap items-center justify-center gap-2 text-3xl font-black text-slate-800">
+                                            <button 
+                                                onClick={() => setActiveVar('A')}
+                                                className={`px-3 py-1 rounded-xl transition-all ${activeVar === 'A' ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-100 hover:bg-slate-200'}`}
+                                            >
+                                                {a}
+                                            </button>
+                                            <span className="text-slate-300">x</span>
+                                            <span className="text-slate-200">+</span>
+                                            <button 
+                                                onClick={() => setActiveVar('B')}
+                                                className={`px-3 py-1 rounded-xl transition-all ${activeVar === 'B' ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-100 hover:bg-slate-200'}`}
+                                            >
+                                                {b}
+                                            </button>
+                                            <span className="text-slate-300">y</span>
+
+
+                                            <div className="flex bg-slate-100 p-1 rounded-xl gap-1 mx-1">
+                                                {['<', '<=', '>', '>='].map(symbol => (
+                                                    <button 
+                                                        key={symbol}
+                                                        onClick={() => setOp(symbol)}
+                                                        className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm transition-all ${op === symbol ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                                                    >
+                                                        {symbol === '<=' ? '≤' : symbol === '>=' ? '≥' : symbol}
+                                                    </button>
+                                                ))}
+                   </div>
+
+
+                                            <button 
+                                                onClick={() => setActiveVar('C')}
+                                                className={`px-3 py-1 rounded-xl transition-all ${activeVar === 'C' ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-100 hover:bg-slate-200'}`}
+                                            >
+                                                {c}
+                                            </button>
+                                        </div>
+                                    </div>
+
+
+                                    {/* Keypad */}
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, '±', 0, 'C'].map(btn => (
+                                            <button
+                                                key={btn}
+                                                onClick={() => handleKeypad(btn)}
+                                                className={`h-14 rounded-2xl font-extrabold text-xl shadow-sm transition-all active:scale-95 flex items-center justify-center
+                                                    ${typeof btn === 'number' ? 'bg-white text-slate-700 hover:bg-blue-50' : 
+                                                      btn === 'C' ? 'bg-red-50 text-red-500' : 'bg-slate-200 text-slate-600'}
+                                                `}
+                                            >
+                                                {btn}
+                                            </button>
+                                        ))}
+                                    </div>
+
+
+                                    {/* Story Mode Toggle */}
+                                    <div className={`p-5 rounded-3xl border-2 transition-all cursor-pointer group ${isStory ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-100 hover:border-blue-200'}`} onClick={() => setIsStory(!isStory)}>
+                                        <div className="flex gap-4 items-start">
+                                            <div className={`p-3 rounded-2xl ${isStory ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-500'}`}>
+                                                <Icons.Story />
+                                            </div>
+                                            <div>
+                                                <h4 className={`text-sm font-black ${isStory ? 'text-amber-800' : 'text-slate-800'}`}>Story Mode</h4>
+                                                <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                                                    {isStory 
+                                                        ? `You have $${c} to spend. Each apple costs $${a} and each orange costs $${b}. The shaded region shows what fits your budget!`
+                                                        : "Turn variables into real items like Apples and Oranges to see how budget inequalities work in real life."}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            /* Teacher Dashboard View */
+                            <div className="flex-1 p-8 bg-slate-50 overflow-y-auto">
+                                <div className="max-w-4xl mx-auto">
+                                    <div className="flex items-end justify-between mb-8">
+                                        <div>
+                                            <h2 className="text-3xl font-black text-slate-800">Class Monitoring</h2>
+                                            <p className="text-slate-400 font-bold text-sm">Real-time point verification log</p>
+                                        </div>
+                                        <div className="text-xs font-bold text-slate-400 flex gap-4">
+                                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Success</div>
+                                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500"></div> Error</div>
+                                        </div>
+                                    </div>
+
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Points Tested</p>
+                                            <p className="text-4xl font-black text-slate-800 mt-2">{history.length}</p>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Accuracy Rate</p>
+                                            <p className="text-4xl font-black text-blue-600 mt-2">
+                                                {history.length ? Math.round((history.filter(h => h.isTrue).length / history.length) * 100) : 0}%
+                                            </p>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Concept</p>
+                                            <p className="text-lg font-black text-slate-800 mt-2">Boundary Lines</p>
+                                        </div>
+                                    </div>
+
+
+                                    <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100">
+                                        <table className="w-full text-left">
+                                            <thead className="bg-slate-50 border-b border-slate-100">
+                                                <tr>
+                                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Timestamp</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Inequality</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Coordinates</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Result</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {history.length > 0 ? history.map((log, i) => (
+                                                    <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                                        <td className="px-6 py-4 text-xs font-bold text-slate-400 font-mono">{log.time}</td>
+                                                        <td className="px-6 py-4 text-sm font-extrabold text-slate-700">{log.eq}</td>
+                                                        <td className="px-6 py-4 text-sm font-bold text-blue-600">({log.x}, {log.y})</td>
+                                                        <td className="px-6 py-4">
+                                                            <span className={`px-3 py-1 rounded-lg text-[10px] font-black border ${log.isTrue ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
+                                                                {log.isTrue ? 'TRUE' : 'FALSE'}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                )) : (
+                                                    <tr>
+                                                        <td colSpan="4" className="px-6 py-12 text-center text-slate-400 italic font-medium">Waiting for student interaction logs...</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+
+                    {/* Branding Footer */}
+                    <footer className="bg-white border-t border-slate-100 px-6 py-4 flex flex-wrap justify-between items-center no-print">
+                        <div className="flex gap-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            <span>Rose Ann Tanteo</span>
+                            <span>Shaina Mae Camacho</span>
+                            <span>Claire Ann Evangelista</span>
+                        </div>
+                        <div className="text-[10px] font-black text-blue-600 flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
+                            Mathematics Education Sandbox
+                        </div>
+                    </footer>
+                </div>
+            );
+        };
+
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
+
+```
